@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LEGACY | Market Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--card:#0A0A0A;--card2:#141414;--line:#2A2A2A;--mut:#9A9A9A;--soft:#CFCFCF;--up:#2EC4A0;--dn:#F0646A;--blue:#4C8DFF}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden;color:#fff;font:14px Inter,system-ui,sans-serif;background:radial-gradient(1100px 480px at 72% -8%,#1A1A1A 0,#000 62%) #000}
+button{font:inherit;color:inherit;cursor:pointer}
+.app{height:100%;display:flex;flex-direction:column;gap:16px;padding:20px 24px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:32px;height:32px;border-radius:8px;background:#fff;display:grid;place-items:center}
+.mut{color:var(--mut)}
+.st{display:flex;align-items:center;gap:16px;font-size:13px;color:var(--mut)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--up);margin-right:6px}
+.dot.off{background:#5A5A5A}
+.pill{padding:4px 10px;border:1px solid var(--line);border-radius:999px}
+.grid{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+.chartcard{display:flex;flex-direction:column;min-height:0;padding:20px;background:linear-gradient(180deg,#0F0F0F,#0A0A0A)}
+.hd{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.sym{font-size:22px}
+.px{display:flex;align-items:baseline;gap:12px;margin-top:2px;font-variant-numeric:tabular-nums}
+#px{font-size:32px;font-weight:700}
+.seg{display:flex;gap:4px;padding:4px;background:#000;border:1px solid var(--line);border-radius:10px}
+.seg button{padding:6px 12px;border:0;border-radius:7px;background:none;color:var(--mut)}
+.seg button.on{background:#fff;color:#000;font-weight:600}
+.row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:12px 0 8px}
+.badge{padding:5px 10px;border-radius:999px;background:var(--line);color:var(--soft);font-weight:600;font-size:13px}
+.badge.pos{background:#12302B;color:var(--up)}
+.badge.neg{background:#3A1A1C;color:var(--dn)}
+.ohlc{margin-left:auto;font-size:13px;color:var(--mut);font-variant-numeric:tabular-nums}
+.wrap{position:relative;flex:1;min-height:0}
+#chart{position:absolute;inset:0}
+.msg{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--soft);background:#0A0A0Acc;padding:24px}
+[hidden]{display:none!important}
+aside{display:flex;flex-direction:column;gap:12px;min-height:0;overflow:hidden}
+.h{font-weight:600;font-size:15px;margin-bottom:10px}
+.wh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.seg.s button{padding:5px 12px}
+.w{display:flex;align-items:center;justify-content:space-between;width:100%;height:64px;padding:0 14px;margin-bottom:8px;border-radius:12px;border:1px solid var(--line);background:#0F0F0F;text-align:left}
+.w.on{border-color:#fff;background:var(--card2)}
+.w .l{font-weight:600}.w .l small{display:block;margin-top:2px;font-weight:400;font-size:12px;color:var(--mut)}
+.w .r{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}.w .r small{display:block;margin-top:2px;font-size:12px}
+.up{color:var(--up)}.dn{color:var(--dn)}
+.note{font-size:13px;color:var(--mut);margin:2px 0 0;line-height:1.5}
+#brief{margin:0;color:var(--soft);line-height:1.55;font-size:13.5px}
+.ev{padding:8px 0;border-top:1px solid var(--line);font-size:13px;color:var(--mut)}
+@media(max-width:900px){html,body{overflow:auto}.grid{grid-template-columns:1fr}.app{height:auto}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="top">
+<div class="brand"><div class="logo"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2,13 7,8 10,11 16,4"/></svg></div><b style="letter-spacing:.12em">LEGACY</b><span class="mut">Market analysis</span></div>
+<div class="st"><span><i class="dot off" id="d1"></i><span id="s1">Crypto connecting</span></span><span><i class="dot off"></i>Forex off</span><span class="pill">Read only</span><span id="clock"></span></div>
+</header>
+<div class="grid">
+<main class="card chartcard">
+<div class="hd">
+<div><div><b class="sym" id="sym">BTC-USD</b> <span class="mut" id="nm">Bitcoin</span></div><div class="px"><span id="px">–</span><span id="chg"></span></div></div>
+<div class="seg" id="tfs"></div>
+</div>
+<div class="row"><span class="badge" id="bt">Trend</span><span class="badge" id="bm">Momentum</span><span class="badge" id="bv">Volatility</span><span class="ohlc" id="ohlc"></span></div>
+<div class="wrap"><div id="chart"></div><div class="msg" id="msg" hidden></div></div>
+</main>
+<aside>
+<section class="card">
+<div class="wh"><span class="h" style="margin:0">Watchlist</span><div class="seg s" id="mk"><button class="on" data-m="c">Crypto</button><button data-m="f">Forex</button></div></div>
+<div id="wl"></div>
+<div class="note" id="wn">Live prices from Binance, updated instantly.</div>
+</section>
+<section class="card"><div class="h">Today's briefing</div><p id="brief">Loading…</p><p class="note">Code-based analysis · not financial advice</p></section>
+<section class="card"><div class="h">Next events <span class="mut" style="font-weight:400">(Prague time)</span></div><div class="ev">Economic calendar is not connected yet.</div><div class="ev">Next step: add a free calendar key.</div></section>
+<section class="card"><div class="h">Latest news</div><div class="ev">News feed is not connected yet.</div><div class="ev">Next step: add a free news key.</div></section>
+</aside>
+</div>
+</div>
+<script>
+(function(){
+const U=['https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js','https://cdnjs.cloudflare.com/ajax/libs/lightweight-charts/4.1.3/lightweight-charts.standalone.production.js','https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js'];
+function boot(i){
+ if(window.LightweightCharts)return run(false);
+ if(i>=U.length)return run(true);
+ const t=document.createElement('script');t.src=U[i];t.onload=()=>boot(i+1);t.onerror=()=>boot(i+1);document.head.appendChild(t);
+}
+function run(noLib){
+const SYMS={BTC:{s:'BTCUSDT',n:'Bitcoin',l:'BTC-USD'},ETH:{s:'ETHUSDT',n:'Ethereum',l:'ETH-USD'},SOL:{s:'SOLUSDT',n:'Solana',l:'SOL-USD'}};
+const TFS=[['1m','1m'],['5m','5m'],['15m','15m'],['1h','1h'],['4h','4h'],['1D','1d'],['1W','1w']];
+let cur='BTC',tf='15m',ws=null,tws=null,candles=[],tick={},spark={},market='c' ,timer=null;
+const $=id=>document.getElementById(id);
+const f=n=>n.toLocaleString('en-US',{minimumFractionDigits:n<10?4:2,maximumFractionDigits:n<10?4:2});
+const pt=ms=>{const d=new Date(ms);const o=(new Date(d.toLocaleString('en-US',{timeZone:'Europe/Prague'}))-new Date(d.toLocaleString('en-US',{timeZone:'UTC'})))/1000;return Math.floor(ms/1000+o)};
+const sgn=v=>(v>=0?'▲ ':'▼ ')+Math.abs(v).toFixed(2)+'%';
+
+const stub=new Proxy(function(){},{get:()=>stub,apply:()=>stub});
+const chart=!window.LightweightCharts?stub:LightweightCharts.createChart($('chart'),{autoSize:true,layout:{background:{color:'transparent'},textColor:'#9A9A9A',fontFamily:'Inter'},grid:{vertLines:{color:'#141414'},horzLines:{color:'#1A1A1A'}},rightPriceScale:{borderColor:'#2A2A2A',scaleMargins:{top:.08,bottom:.2}},timeScale:{borderColor:'#2A2A2A',timeVisible:true,rightOffset:5},crosshair:{mode:0}});
+const cs=chart.addCandlestickSeries({upColor:'#FFFFFF',downColor:'#4C8DFF',borderUpColor:'#FFFFFF',borderDownColor:'#4C8DFF',wickUpColor:'#FFFFFF',wickDownColor:'#4C8DFF',priceLineStyle:2,priceLineColor:'#9A9A9A'});
+const vs=chart.addHistogramSeries({priceFormat:{type:'volume'},priceScaleId:'vol',lastValueVisible:false,priceLineVisible:false});
+chart.priceScale('vol').applyOptions({scaleMargins:{top:.88,bottom:0}});
+
+let volCap=Infinity;
+const capVol=()=>{const v=candles.map(c=>c.vol).sort((a,b)=>a-b);volCap=v.length?v[Math.floor(v.length*.9)]*1.5:Infinity};
+const vp=c=>({time:c.time,value:Math.min(c.vol,volCap),color:c.close>=c.open?'rgba(255,255,255,.35)':'rgba(76,141,255,.45)'});
+const showO=c=>{if(!c)return;$('ohlc').innerHTML=`O ${f(c.open)} &nbsp;H ${f(c.high)} &nbsp;L ${f(c.low)} &nbsp;<span style="color:var(${c.close>=c.open?'--up':'--dn'})">C ${f(c.close)}</span>`};
+chart.subscribeCrosshairMove(p=>{const d=p.seriesData&&p.seriesData.get(cs);showO(d||candles[candles.length-1])});
+
+function ema(a,n){const k=2/(n+1);let e=a[0];return a.map((v,i)=>i?(e=v*k+e*(1-k)):e)}
+function rsi(a,n=14){const o=Array(a.length).fill(50);let g=0,l=0;for(let i=1;i<a.length;i++){const d=a[i]-a[i-1],u=Math.max(d,0),w=Math.max(-d,0);if(i<=n){g+=u/n;l+=w/n}else{g=(g*(n-1)+u)/n;l=(l*(n-1)+w)/n}if(i>=n)o[i]=l===0?100:100-100/(1+g/l)}return o}
+function atr(c,n=14){const o=[];let a=0;c.forEach((x,i)=>{const tr=i?Math.max(x.high-x.low,Math.abs(x.high-c[i-1].close),Math.abs(x.low-c[i-1].close)):x.high-x.low;a=i<n?(a*i+tr)/(i+1):(a*(n-1)+tr)/n;o.push(a)});return o}
+const badge=(id,txt,cls)=>{const e=$(id);e.textContent=txt;e.className='badge '+cls};
+
+function analyse(){
+ if(candles.length<60)return;
+ const cl=candles.map(c=>c.close),L=cl.length-1,p=cl[L];
+ const e20=ema(cl,20),e50=ema(cl,50),r=rsi(cl),a=atr(candles);
+ const trend=p>e50[L]&&e20[L]>e50[L]?'Up':p<e50[L]&&e20[L]<e50[L]?'Down':'Sideways';
+ const dr=r[L]-r[L-5],mom=dr>1.5?'Strengthening':dr<-1.5?'Weakening':'Flat';
+ const ap=a.map((v,i)=>v/cl[i]).slice(-100),rank=ap.filter(x=>x<=ap[ap.length-1]).length/ap.length;
+ const vol=rank>.7?'High':rank<.3?'Low':'Normal';
+ const rec=candles.slice(-60),sup=Math.min(...rec.map(c=>c.low)),res=Math.max(...rec.map(c=>c.high));
+ badge('bt','Trend · '+trend,trend==='Up'?'pos':trend==='Down'?'neg':'');
+ badge('bm','Momentum · '+mom,mom==='Strengthening'?'pos':mom==='Weakening'?'neg':'');
+ badge('bv','Volatility · '+vol,'');
+ $('brief').textContent=`On the ${tf} chart, ${SYMS[cur].l} is trading near ${f(p)}. The short-term trend is ${trend.toLowerCase()}, momentum is ${mom.toLowerCase()}, volatility is ${vol.toLowerCase()} and RSI is ${r[L].toFixed(0)}. If price holds above ${f(sup)}, the recent range stays intact and ${f(res)} is the next test. A break below ${f(sup)} would increase downside pressure.`;
+}
+
+function head(){
+ const t=tick[SYMS[cur].s],p=t?t.p:(candles.length?candles[candles.length-1].close:0);
+ $('sym').textContent=SYMS[cur].l;$('nm').textContent=SYMS[cur].n;
+ if(p)$('px').textContent=f(p);
+ if(t){const c=(t.p-t.o)/t.o*100;const e=$('chg');e.textContent=sgn(c)+' 24h';e.className=c>=0?'up':'dn';e.style.fontWeight=600}
+}
+function wl(){
+ if(market==='f'){$('wl').innerHTML='<div class="note" style="padding:8px 0 4px">Forex needs a free API key. This is the next step.</div>';return}
+ $('wl').innerHTML=Object.keys(SYMS).map(k=>{
+  const s=SYMS[k],t=tick[s.s],c=t?(t.p-t.o)/t.o*100:null,sp=spark[s.s],up=c===null||c>=0;
+  let svg='<svg width="64" height="26" aria-hidden="true"></svg>';
+  if(sp&&sp.length){const lo=Math.min(...sp),hi=Math.max(...sp),pts=sp.map((v,i)=>(i/(sp.length-1)*64).toFixed(1)+','+(24-(v-lo)/((hi-lo)||1)*22).toFixed(1)).join(' ');svg=`<svg width="64" height="26" viewBox="0 0 64 26" fill="none" stroke="var(${up?'--up':'--dn'})" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><polyline points="${pts}"/></svg>`}
+  return `<button class="w ${k===cur?'on':''}" data-k="${k}"><span class="l">${s.l}<small><i class="dot"></i>Live</small></span>${svg}<span class="r">${t?f(t.p):'–'}<small class="${up?'up':'dn'}">${c===null?'':sgn(c)}</small></span></button>`}).join('');
+}
+
+function status(ok,msg){$('d1').className='dot'+(ok?'':' off');$('s1').textContent=ok?'Crypto live':msg||'Crypto reconnecting'}
+function fail(t){$('msg').hidden=!t;$('msg').textContent=t||''}
+
+async function load(){
+ fail('');status(false,'Crypto connecting');
+ try{
+  const r=await fetch(`https://api.binance.com/api/v3/klines?symbol=${SYMS[cur].s}&interval=${TFS.find(x=>x[0]===tf)[1]}&limit=500`);
+  if(!r.ok)throw new Error(r.status);
+  const k=await r.json();
+  candles=k.map(x=>({time:pt(x[0]),open:+x[1],high:+x[2],low:+x[3],close:+x[4],vol:+x[5]}));
+  capVol();cs.setData(candles);vs.setData(candles.map(vp));
+  chart.timeScale().setVisibleLogicalRange({from:candles.length-110,to:candles.length+6});
+  showO(candles[candles.length-1]);analyse();head();wl();connect();
+  if(noLib)fail('The chart library could not be loaded. In Brave, click the lion icon in the address bar, turn Shields off for this page, then reload. Prices and the briefing still work.');
+ }catch(e){fail('Could not load market data. Check your internet connection and try again.')}
+}
+function connect(){
+ if(ws){ws.onclose=null;ws.close()}
+ const iv=TFS.find(x=>x[0]===tf)[1];
+ ws=new WebSocket(`wss://stream.binance.com:9443/ws/${SYMS[cur].s.toLowerCase()}@kline_${iv}`);
+ ws.onopen=()=>status(true);
+ ws.onmessage=e=>{const k=JSON.parse(e.data).k,c={time:pt(k.t),open:+k.o,high:+k.h,low:+k.l,close:+k.c,vol:+k.v},last=candles[candles.length-1];
+  if(last&&last.time===c.time)candles[candles.length-1]=c;else candles.push(c);
+  cs.update(c);vs.update(vp(c));if(!timer)timer=setTimeout(()=>{timer=null;analyse();head()},1500)};
+ ws.onclose=()=>{status(false);setTimeout(connect,3000)};
+}
+function tickers(){
+ const q=Object.values(SYMS).map(s=>s.s.toLowerCase()+'@miniTicker').join('/');
+ tws=new WebSocket('wss://stream.binance.com:9443/stream?streams='+q);
+ tws.onmessage=e=>{const d=JSON.parse(e.data).data;tick[d.s]={p:+d.c,o:+d.o}};
+ tws.onclose=()=>setTimeout(tickers,3000);
+ setInterval(()=>{head();wl()},1000);
+}
+async function sparks(){
+ for(const k in SYMS){try{const r=await fetch(`https://api.binance.com/api/v3/klines?symbol=${SYMS[k].s}&interval=1h&limit=30`);spark[SYMS[k].s]=(await r.json()).map(x=>+x[4])}catch(e){}}
+ wl();
+}
+
+$('tfs').innerHTML=TFS.map(x=>`<button data-tf="${x[0]}" class="${x[0]===tf?'on':''}">${x[0]}</button>`).join('');
+$('tfs').onclick=e=>{const b=e.target.closest('button');if(!b)return;tf=b.dataset.tf;[...$('tfs').children].forEach(c=>c.classList.toggle('on',c===b));load()};
+$('wl').onclick=e=>{const b=e.target.closest('.w');if(!b)return;cur=b.dataset.k;head();wl();load()};
+$('mk').onclick=e=>{const b=e.target.closest('button');if(!b)return;market=b.dataset.m;[...$('mk').children].forEach(c=>c.classList.toggle('on',c===b));wl()};
+setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString('en-GB',{timeZone:'Europe/Prague',hour:'2-digit',minute:'2-digit'})+' Prague'},1000);
+load();tickers();sparks();
+}
+boot(0);
+})();
+</script>
+</body>
+</html>
