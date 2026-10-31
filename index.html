@@ -168,14 +168,17 @@ function wl(){
 function status(ok,msg){$('d1').className='dot'+(ok?'':' off');$('s1').textContent=ok?'Crypto live':msg||'Crypto reconnecting'}
 function fail(t){$('msg').hidden=!t;$('msg').textContent=t||''}
 
-const stF=(ok,msg)=>{$('d2').className='dot'+(ok?'':' off');$('s2').textContent=ok?'Forex ~1 min':msg||'Forex off'};
+const fxClosed=()=>{const d=new Date(),w=d.getUTCDay(),h=d.getUTCHours();return w===6||(w===5&&h>=22)||(w===0&&h<22)};
+const stF=(ok,msg)=>{$('d2').className='dot'+(ok?'':' off');$('s2').textContent=ok?(fxClosed()?'Forex closed':'Forex ~1 min'):msg||'Forex off'};
 let fxTimer=null;
-const fxMap=v=>({time:Math.floor(Date.parse(v.datetime.length<=10?v.datetime+'T00:00:00Z':v.datetime.replace(' ','T')+'Z')/1000),open:+v.open,high:+v.high,low:+v.low,close:+v.close,vol:0});
+const tzOff=(ms,tz)=>new Date(new Date(ms).toLocaleString('en-US',{timeZone:tz}))-new Date(new Date(ms).toLocaleString('en-US',{timeZone:'UTC'}));
+const fxMap=(v,tz)=>{let ms=Date.parse(v.datetime.length<=10?v.datetime+'T00:00:00Z':v.datetime.replace(' ','T')+'Z');if(tz!=='UTC')ms-=tzOff(ms,tz);return{time:Math.floor(ms/1000),open:+v.open,high:+v.high,low:+v.low,close:+v.close,vol:0}};
 async function fxGet(sym,iv,n){
  const r=await fetch(`${FX}/time_series?symbol=${encodeURIComponent(sym)}&interval=${iv}&outputsize=${n}`);
  const j=await r.json();
  if(j.status==='error'||!j.values)throw new Error(j.message||'no data');
- return j.values.map(fxMap).reverse();
+ const tz=(j.meta&&j.meta.exchange_timezone)||'UTC';
+ return j.values.map(v=>fxMap(v,tz)).reverse().filter(c=>c.time<=Date.now()/1000+120);
 }
 const fxErr=e=>/credit|limit|minute|run out/i.test(e.message)?'Forex limit reached on the free plan. It resumes automatically, try again in a minute.':'Could not load forex data. Forex only works from your GitHub Pages link, and the Worker key must be set.';
 async function loadFx(){
@@ -183,6 +186,7 @@ async function loadFx(){
  clearInterval(fxTimer);status(false,'Crypto off');stF(false,'Forex loading');fail('');
  try{
   candles=await fxGet(S().s,FTF[tf],300);
+  const pr=S().s.includes('JPY')?3:5;cs.applyOptions({priceFormat:{type:'price',precision:pr,minMove:1/10**pr}});
   cs.setData(candles);vs.setData([]);
   chart.timeScale().setVisibleLogicalRange({from:candles.length-110,to:candles.length+6});
   showO(candles[candles.length-1]);analyse();head();wl();stF(true);
@@ -190,7 +194,7 @@ async function loadFx(){
  }catch(e){stF(false,'Forex error');fail(fxErr(e))}
 }
 async function fxPoll(){
- if(document.hidden||market!=='f'||!candles.length)return;
+ if(document.hidden||fxClosed()||market!=='f'||!candles.length)return;
  try{
   const n=await fxGet(S().s,FTF[tf],3);
   n.forEach(c=>{const last=candles[candles.length-1];if(c.time>=last.time){if(c.time===last.time)candles[candles.length-1]=c;else candles.push(c);cs.update(c)}});
@@ -198,7 +202,7 @@ async function fxPoll(){
  }catch(e){stF(false,'Forex paused')}
 }
 async function fxWatch(){
- if(document.hidden)return;
+ if(document.hidden||(fxClosed()&&spark[FXS.EUR.s]))return;
  for(const k in FXS){try{const v=await fxGet(FXS[k].s,'1h',30),L=v.length-1;spark[FXS[k].s]=v.map(c=>c.close);tick[FXS[k].s]={p:v[L].close,o:v[Math.max(0,L-24)].close}}catch(e){}}
 }
 setInterval(()=>{if(market==='f')fxWatch()},300000);
@@ -206,6 +210,7 @@ setInterval(()=>{if(market==='f')fxWatch()},300000);
 async function load(){
  if(market==='f')return loadFx();
  clearInterval(fxTimer);stF(false,'Forex off');
+ cs.applyOptions({priceFormat:{type:'price',precision:2,minMove:0.01}});
  fail('');status(false,'Crypto connecting');
  try{
   const r=await fetch(`https://api.binance.com/api/v3/klines?symbol=${S().s}&interval=${ivl()}&limit=500`);
