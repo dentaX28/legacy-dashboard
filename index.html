@@ -169,7 +169,7 @@ function wl(){
 function status(ok,msg){$('d1').className='dot'+(ok?'':' off');$('s1').textContent=ok?'Crypto live':msg||'Crypto reconnecting'}
 function fail(t){$('msg').hidden=!t;$('msg').textContent=t||''}
 
-const fxClosed=()=>{const d=new Date(),w=d.getUTCDay(),h=d.getUTCHours();return w===6||(w===5&&h>=22)||(w===0&&h<22)};
+const fxClosed=(d=new Date())=>{const w=d.getUTCDay(),h=d.getUTCHours();return w===6||(w===5&&h>=22)||(w===0&&h<22)};
 const stF=(ok,msg)=>{$('d2').className='dot'+(ok?'':' off');$('s2').textContent=ok?(fxClosed()?'Forex closed':'Forex ~1 min'):msg||'Forex off'};
 let fxTimer=null;
 const tzOff=(ms,tz)=>new Date(new Date(ms).toLocaleString('en-US',{timeZone:tz}))-new Date(new Date(ms).toLocaleString('en-US',{timeZone:'UTC'}));
@@ -179,7 +179,9 @@ async function fxGet(sym,iv,n){
  const j=await r.json();
  if(j.status==='error'||!j.values)throw new Error(j.message||'no data');
  const tz=(j.meta&&j.meta.exchange_timezone)||'UTC';
- const out=j.values.map(v=>fxMap(v,tz)).reverse();out.tz=tz;return out;
+ let out=j.values.map(v=>fxMap(v,tz)).reverse();
+ if(iv!=='1day'&&iv!=='1week')out=out.filter(c=>!fxClosed(new Date(c.time*1000)));
+ out.tz=tz;return out;
 }
 const fxErr=e=>/credit|limit|minute|run out/i.test(e.message)?'Forex limit reached on the free plan. It resumes automatically, try again in a minute.':'Could not load forex data. Forex only works from your GitHub Pages link, and the Worker key must be set.';
 let fxInfo='';
@@ -190,7 +192,7 @@ async function loadFx(){
  if(ws){ws.onclose=null;ws.close();ws=null}
  clearInterval(fxTimer);status(false,'Crypto off');stF(false,'Forex loading');fail('');
  try{
-  candles=await fxGet(S().s,FTF[tf],300);const z=candles.tz;
+  candles=await fxGet(S().s,FTF[tf],600);const z=candles.tz;
   const pr=S().s.includes('JPY')?3:5;cs.applyOptions({priceFormat:{type:'price',precision:pr,minMove:1/10**pr}});
   cs.setData(candles);vs.setData([]);
   chart.timeScale().setVisibleLogicalRange({from:candles.length-110,to:candles.length+6});
