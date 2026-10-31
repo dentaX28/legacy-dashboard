@@ -57,7 +57,7 @@ aside{display:flex;flex-direction:column;gap:12px;min-height:0;overflow:hidden}
 <div class="app">
 <header class="top">
 <div class="brand"><div class="logo"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2,13 7,8 10,11 16,4"/></svg></div><b style="letter-spacing:.12em">LEGACY</b><span class="mut">Market analysis</span></div>
-<div class="st"><span><i class="dot off" id="d1"></i><span id="s1">Crypto connecting</span></span><span><i class="dot off"></i>Forex off</span><span class="pill">Read only</span><span id="clock"></span></div>
+<div class="st"><span><i class="dot off" id="d1"></i><span id="s1">Crypto connecting</span></span><span><i class="dot off" id="d2"></i><span id="s2">Forex off</span></span><span class="pill">Read only</span><span id="clock"></span></div>
 </header>
 <div class="grid">
 <main class="card chartcard">
@@ -90,15 +90,22 @@ function boot(i){
 }
 function run(noLib){
 const SYMS={BTC:{s:'BTCUSDT',n:'Bitcoin',l:'BTC-USD'},ETH:{s:'ETHUSDT',n:'Ethereum',l:'ETH-USD'},SOL:{s:'SOLUSDT',n:'Solana',l:'SOL-USD'}};
+const FXS={EUR:{s:'EUR/USD',n:'Euro / US Dollar',l:'EUR-USD'},GBP:{s:'GBP/USD',n:'British Pound / US Dollar',l:'GBP-USD'},JPY:{s:'USD/JPY',n:'US Dollar / Japanese Yen',l:'USD-JPY'}};
+const FX='https://legacy-forex.popfolushiyd.workers.dev';
+const FTF={'1m':'1min','5m':'5min','15m':'15min','1h':'1h','4h':'4h','1D':'1day','1W':'1week'};
 const TFS=[['1m','1m'],['5m','5m'],['15m','15m'],['1h','1h'],['4h','4h'],['1D','1d'],['1W','1w']];
 let cur='BTC',tf='15m',ws=null,tws=null,candles=[],tick={},spark={},market='c' ,timer=null;
+const S=()=>(market==='c'?SYMS:FXS)[cur];
 const $=id=>document.getElementById(id);
 const f=n=>n.toLocaleString('en-US',{minimumFractionDigits:n<10?4:2,maximumFractionDigits:n<10?4:2});
-const pt=ms=>{const d=new Date(ms);const o=(new Date(d.toLocaleString('en-US',{timeZone:'Europe/Prague'}))-new Date(d.toLocaleString('en-US',{timeZone:'UTC'})))/1000;return Math.floor(ms/1000+o)};
+const pt=ms=>Math.floor(ms/1000);
+const mk=x=>({ms:x[0],time:pt(x[0]),open:+x[1],high:+x[2],low:+x[3],close:+x[4],vol:+x[5]});
+const ivl=()=>TFS.find(x=>x[0]===tf)[1];
+const PR='Europe/Prague';
 const sgn=v=>(v>=0?'▲ ':'▼ ')+Math.abs(v).toFixed(2)+'%';
 
 const stub=new Proxy(function(){},{get:()=>stub,apply:()=>stub});
-const chart=!window.LightweightCharts?stub:LightweightCharts.createChart($('chart'),{autoSize:true,layout:{background:{color:'transparent'},textColor:'#9A9A9A',fontFamily:'Inter'},grid:{vertLines:{color:'#141414'},horzLines:{color:'#1A1A1A'}},rightPriceScale:{borderColor:'#2A2A2A',scaleMargins:{top:.08,bottom:.2}},timeScale:{borderColor:'#2A2A2A',timeVisible:true,rightOffset:5},crosshair:{mode:0}});
+const chart=!window.LightweightCharts?stub:LightweightCharts.createChart($('chart'),{autoSize:true,layout:{background:{color:'transparent'},textColor:'#9A9A9A',fontFamily:'Inter'},grid:{vertLines:{color:'#141414'},horzLines:{color:'#1A1A1A'}},rightPriceScale:{borderColor:'#2A2A2A',scaleMargins:{top:.08,bottom:.2}},timeScale:{borderColor:'#2A2A2A',timeVisible:true,rightOffset:5,tickMarkFormatter:(t,y)=>new Date(t*1000).toLocaleString('en-GB',y===0?{timeZone:PR,year:'numeric'}:y===1?{timeZone:PR,month:'short'}:y===2?{timeZone:PR,day:'numeric',month:'short'}:{timeZone:PR,hour:'2-digit',minute:'2-digit',hour12:false})},localization:{timeFormatter:t=>new Date(t*1000).toLocaleString('en-GB',{timeZone:PR,day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',hour12:false})},crosshair:{mode:0}});
 const cs=chart.addCandlestickSeries({upColor:'#FFFFFF',downColor:'#4C8DFF',borderUpColor:'#FFFFFF',borderDownColor:'#4C8DFF',wickUpColor:'#FFFFFF',wickDownColor:'#4C8DFF',priceLineStyle:2,priceLineColor:'#9A9A9A'});
 const vs=chart.addHistogramSeries({priceFormat:{type:'volume'},priceScaleId:'vol',lastValueVisible:false,priceLineVisible:false});
 chart.priceScale('vol').applyOptions({scaleMargins:{top:.88,bottom:0}});
@@ -108,6 +115,20 @@ const capVol=()=>{const v=candles.map(c=>c.vol).sort((a,b)=>a-b);volCap=v.length
 const vp=c=>({time:c.time,value:Math.min(c.vol,volCap),color:c.close>=c.open?'rgba(255,255,255,.35)':'rgba(76,141,255,.45)'});
 const showO=c=>{if(!c)return;$('ohlc').innerHTML=`O ${f(c.open)} &nbsp;H ${f(c.high)} &nbsp;L ${f(c.low)} &nbsp;<span style="color:var(${c.close>=c.open?'--up':'--dn'})">C ${f(c.close)}</span>`};
 chart.subscribeCrosshairMove(p=>{const d=p.seriesData&&p.seriesData.get(cs);showO(d||candles[candles.length-1])});
+let busy=false;
+async function older(){
+ if(market!=='c'||busy||!candles.length)return;busy=true;const key=cur+tf;
+ try{
+  const r=await fetch(`https://api.binance.com/api/v3/klines?symbol=${S().s}&interval=${ivl()}&limit=500&endTime=${candles[0].ms-1}`);
+  const add=(await r.json()).map(mk);
+  if(!add.length||key!==cur+tf)return;
+  const vr=chart.timeScale().getVisibleLogicalRange();
+  candles=add.concat(candles);capVol();cs.setData(candles);vs.setData(candles.map(vp));
+  if(vr)chart.timeScale().setVisibleLogicalRange({from:vr.from+add.length,to:vr.to+add.length});
+ }catch(e){}finally{busy=false}
+}
+chart.timeScale().subscribeVisibleLogicalRangeChange(r=>{if(r&&r.from<15)older()});
+
 
 function ema(a,n){const k=2/(n+1);let e=a[0];return a.map((v,i)=>i?(e=v*k+e*(1-k)):e)}
 function rsi(a,n=14){const o=Array(a.length).fill(50);let g=0,l=0;for(let i=1;i<a.length;i++){const d=a[i]-a[i-1],u=Math.max(d,0),w=Math.max(-d,0);if(i<=n){g+=u/n;l+=w/n}else{g=(g*(n-1)+u)/n;l=(l*(n-1)+w)/n}if(i>=n)o[i]=l===0?100:100-100/(1+g/l)}return o}
@@ -126,34 +147,71 @@ function analyse(){
  badge('bt','Trend · '+trend,trend==='Up'?'pos':trend==='Down'?'neg':'');
  badge('bm','Momentum · '+mom,mom==='Strengthening'?'pos':mom==='Weakening'?'neg':'');
  badge('bv','Volatility · '+vol,'');
- $('brief').textContent=`On the ${tf} chart, ${SYMS[cur].l} is trading near ${f(p)}. The short-term trend is ${trend.toLowerCase()}, momentum is ${mom.toLowerCase()}, volatility is ${vol.toLowerCase()} and RSI is ${r[L].toFixed(0)}. If price holds above ${f(sup)}, the recent range stays intact and ${f(res)} is the next test. A break below ${f(sup)} would increase downside pressure.`;
+ $('brief').textContent=`On the ${tf} chart, ${S().l} is trading near ${f(p)}. The short-term trend is ${trend.toLowerCase()}, momentum is ${mom.toLowerCase()}, volatility is ${vol.toLowerCase()} and RSI is ${r[L].toFixed(0)}. If price holds above ${f(sup)}, the recent range stays intact and ${f(res)} is the next test. A break below ${f(sup)} would increase downside pressure.`;
 }
 
 function head(){
- const t=tick[SYMS[cur].s],p=t?t.p:(candles.length?candles[candles.length-1].close:0);
- $('sym').textContent=SYMS[cur].l;$('nm').textContent=SYMS[cur].n;
+ const t=tick[S().s],p=t?t.p:(candles.length?candles[candles.length-1].close:0);
+ $('sym').textContent=S().l;$('nm').textContent=S().n;
  if(p)$('px').textContent=f(p);
  if(t){const c=(t.p-t.o)/t.o*100;const e=$('chg');e.textContent=sgn(c)+' 24h';e.className=c>=0?'up':'dn';e.style.fontWeight=600}
 }
 function wl(){
- if(market==='f'){$('wl').innerHTML='<div class="note" style="padding:8px 0 4px">Forex needs a free API key. This is the next step.</div>';return}
- $('wl').innerHTML=Object.keys(SYMS).map(k=>{
-  const s=SYMS[k],t=tick[s.s],c=t?(t.p-t.o)/t.o*100:null,sp=spark[s.s],up=c===null||c>=0;
+ const set=market==='c'?SYMS:FXS;$('wn').textContent=market==='c'?'Live prices from Binance, updated instantly.':'Forex refreshes about every minute (free data plan).';
+ $('wl').innerHTML=Object.keys(set).map(k=>{
+  const s=set[k],t=tick[s.s],c=t?(t.p-t.o)/t.o*100:null,sp=spark[s.s],up=c===null||c>=0;
   let svg='<svg width="64" height="26" aria-hidden="true"></svg>';
   if(sp&&sp.length){const lo=Math.min(...sp),hi=Math.max(...sp),pts=sp.map((v,i)=>(i/(sp.length-1)*64).toFixed(1)+','+(24-(v-lo)/((hi-lo)||1)*22).toFixed(1)).join(' ');svg=`<svg width="64" height="26" viewBox="0 0 64 26" fill="none" stroke="var(${up?'--up':'--dn'})" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><polyline points="${pts}"/></svg>`}
-  return `<button class="w ${k===cur?'on':''}" data-k="${k}"><span class="l">${s.l}<small><i class="dot"></i>Live</small></span>${svg}<span class="r">${t?f(t.p):'–'}<small class="${up?'up':'dn'}">${c===null?'':sgn(c)}</small></span></button>`}).join('');
+  return `<button class="w ${k===cur?'on':''}" data-k="${k}"><span class="l">${s.l}<small><i class="dot"></i>${market==='c'?'Live':'~1 min'}</small></span>${svg}<span class="r">${t?f(t.p):'–'}<small class="${up?'up':'dn'}">${c===null?'':sgn(c)}</small></span></button>`}).join('');
 }
 
 function status(ok,msg){$('d1').className='dot'+(ok?'':' off');$('s1').textContent=ok?'Crypto live':msg||'Crypto reconnecting'}
 function fail(t){$('msg').hidden=!t;$('msg').textContent=t||''}
 
+const stF=(ok,msg)=>{$('d2').className='dot'+(ok?'':' off');$('s2').textContent=ok?'Forex ~1 min':msg||'Forex off'};
+let fxTimer=null;
+const fxMap=v=>({time:Math.floor(Date.parse(v.datetime.length<=10?v.datetime+'T00:00:00Z':v.datetime.replace(' ','T')+'Z')/1000),open:+v.open,high:+v.high,low:+v.low,close:+v.close,vol:0});
+async function fxGet(sym,iv,n){
+ const r=await fetch(`${FX}/time_series?symbol=${encodeURIComponent(sym)}&interval=${iv}&outputsize=${n}`);
+ const j=await r.json();
+ if(j.status==='error'||!j.values)throw new Error(j.message||'no data');
+ return j.values.map(fxMap).reverse();
+}
+const fxErr=e=>/credit|limit|minute|run out/i.test(e.message)?'Forex limit reached on the free plan. It resumes automatically, try again in a minute.':'Could not load forex data. Forex only works from your GitHub Pages link, and the Worker key must be set.';
+async function loadFx(){
+ if(ws){ws.onclose=null;ws.close();ws=null}
+ clearInterval(fxTimer);status(false,'Crypto off');stF(false,'Forex loading');fail('');
+ try{
+  candles=await fxGet(S().s,FTF[tf],300);
+  cs.setData(candles);vs.setData([]);
+  chart.timeScale().setVisibleLogicalRange({from:candles.length-110,to:candles.length+6});
+  showO(candles[candles.length-1]);analyse();head();wl();stF(true);
+  fxTimer=setInterval(fxPoll,90000);
+ }catch(e){stF(false,'Forex error');fail(fxErr(e))}
+}
+async function fxPoll(){
+ if(document.hidden||market!=='f'||!candles.length)return;
+ try{
+  const n=await fxGet(S().s,FTF[tf],3);
+  n.forEach(c=>{const last=candles[candles.length-1];if(c.time>=last.time){if(c.time===last.time)candles[candles.length-1]=c;else candles.push(c);cs.update(c)}});
+  analyse();head();stF(true);
+ }catch(e){stF(false,'Forex paused')}
+}
+async function fxWatch(){
+ if(document.hidden)return;
+ for(const k in FXS){try{const v=await fxGet(FXS[k].s,'1h',30),L=v.length-1;spark[FXS[k].s]=v.map(c=>c.close);tick[FXS[k].s]={p:v[L].close,o:v[Math.max(0,L-24)].close}}catch(e){}}
+}
+setInterval(()=>{if(market==='f')fxWatch()},300000);
+
 async function load(){
+ if(market==='f')return loadFx();
+ clearInterval(fxTimer);stF(false,'Forex off');
  fail('');status(false,'Crypto connecting');
  try{
-  const r=await fetch(`https://api.binance.com/api/v3/klines?symbol=${SYMS[cur].s}&interval=${TFS.find(x=>x[0]===tf)[1]}&limit=500`);
+  const r=await fetch(`https://api.binance.com/api/v3/klines?symbol=${S().s}&interval=${ivl()}&limit=500`);
   if(!r.ok)throw new Error(r.status);
   const k=await r.json();
-  candles=k.map(x=>({time:pt(x[0]),open:+x[1],high:+x[2],low:+x[3],close:+x[4],vol:+x[5]}));
+  candles=k.map(mk);
   capVol();cs.setData(candles);vs.setData(candles.map(vp));
   chart.timeScale().setVisibleLogicalRange({from:candles.length-110,to:candles.length+6});
   showO(candles[candles.length-1]);analyse();head();wl();connect();
@@ -163,9 +221,9 @@ async function load(){
 function connect(){
  if(ws){ws.onclose=null;ws.close()}
  const iv=TFS.find(x=>x[0]===tf)[1];
- ws=new WebSocket(`wss://stream.binance.com:9443/ws/${SYMS[cur].s.toLowerCase()}@kline_${iv}`);
+ ws=new WebSocket(`wss://stream.binance.com:9443/ws/${S().s.toLowerCase()}@kline_${iv}`);
  ws.onopen=()=>status(true);
- ws.onmessage=e=>{const k=JSON.parse(e.data).k,c={time:pt(k.t),open:+k.o,high:+k.h,low:+k.l,close:+k.c,vol:+k.v},last=candles[candles.length-1];
+ ws.onmessage=e=>{const k=JSON.parse(e.data).k,c={ms:k.t,time:pt(k.t),open:+k.o,high:+k.h,low:+k.l,close:+k.c,vol:+k.v},last=candles[candles.length-1];
   if(last&&last.time===c.time)candles[candles.length-1]=c;else candles.push(c);
   cs.update(c);vs.update(vp(c));if(!timer)timer=setTimeout(()=>{timer=null;analyse();head()},1500)};
  ws.onclose=()=>{status(false);setTimeout(connect,3000)};
@@ -185,7 +243,7 @@ async function sparks(){
 $('tfs').innerHTML=TFS.map(x=>`<button data-tf="${x[0]}" class="${x[0]===tf?'on':''}">${x[0]}</button>`).join('');
 $('tfs').onclick=e=>{const b=e.target.closest('button');if(!b)return;tf=b.dataset.tf;[...$('tfs').children].forEach(c=>c.classList.toggle('on',c===b));load()};
 $('wl').onclick=e=>{const b=e.target.closest('.w');if(!b)return;cur=b.dataset.k;head();wl();load()};
-$('mk').onclick=e=>{const b=e.target.closest('button');if(!b)return;market=b.dataset.m;[...$('mk').children].forEach(c=>c.classList.toggle('on',c===b));wl()};
+$('mk').onclick=e=>{const b=e.target.closest('button');if(!b)return;market=b.dataset.m;cur=Object.keys(market==='c'?SYMS:FXS)[0];[...$('mk').children].forEach(c=>c.classList.toggle('on',c===b));wl();if(market==='f')fxWatch();load()};
 setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString('en-GB',{timeZone:'Europe/Prague',hour:'2-digit',minute:'2-digit'})+' Prague'},1000);
 load();tickers();sparks();
 }
