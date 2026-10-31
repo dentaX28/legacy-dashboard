@@ -37,6 +37,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .wrap{position:relative;flex:1;min-height:0}
 #chart{position:absolute;inset:0}
 .msg{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--soft);background:#0A0A0Acc;padding:24px}
+.closed{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:3;padding:6px 14px;border:1px solid var(--line);border-radius:999px;background:#000000dd;color:var(--soft);font-size:13px;white-space:nowrap}
 [hidden]{display:none!important}
 aside{display:flex;flex-direction:column;gap:12px;min-height:0;overflow:hidden}
 .h{font-weight:600;font-size:15px;margin-bottom:10px}
@@ -66,7 +67,7 @@ aside{display:flex;flex-direction:column;gap:12px;min-height:0;overflow:hidden}
 <div class="seg" id="tfs"></div>
 </div>
 <div class="row"><span class="badge" id="bt">Trend</span><span class="badge" id="bm">Momentum</span><span class="badge" id="bv">Volatility</span><span class="ohlc" id="ohlc"></span></div>
-<div class="wrap"><div id="chart"></div><div class="msg" id="msg" hidden></div></div>
+<div class="wrap"><div id="chart"></div><div class="msg" id="msg" hidden></div><div class="closed" id="closed" hidden></div></div>
 </main>
 <aside>
 <section class="card">
@@ -157,7 +158,7 @@ function head(){
  if(t){const c=(t.p-t.o)/t.o*100;const e=$('chg');e.textContent=sgn(c)+' 24h';e.className=c>=0?'up':'dn';e.style.fontWeight=600}
 }
 function wl(){
- const set=market==='c'?SYMS:FXS;$('wn').textContent=market==='c'?'Live prices from Binance, updated instantly.':'Forex refreshes about every minute (free data plan).';
+ const set=market==='c'?SYMS:FXS;$('wn').textContent=market==='c'?'Live prices from Binance, updated instantly.':'Forex refreshes about every minute (free data plan).'+fxInfo;
  $('wl').innerHTML=Object.keys(set).map(k=>{
   const s=set[k],t=tick[s.s],c=t?(t.p-t.o)/t.o*100:null,sp=spark[s.s],up=c===null||c>=0;
   let svg='<svg width="64" height="26" aria-hidden="true"></svg>';
@@ -178,18 +179,24 @@ async function fxGet(sym,iv,n){
  const j=await r.json();
  if(j.status==='error'||!j.values)throw new Error(j.message||'no data');
  const tz=(j.meta&&j.meta.exchange_timezone)||'UTC';
- return j.values.map(v=>fxMap(v,tz)).reverse().filter(c=>c.time<=Date.now()/1000+120);
+ const out=j.values.map(v=>fxMap(v,tz)).reverse();out.tz=tz;return out;
 }
 const fxErr=e=>/credit|limit|minute|run out/i.test(e.message)?'Forex limit reached on the free plan. It resumes automatically, try again in a minute.':'Could not load forex data. Forex only works from your GitHub Pages link, and the Worker key must be set.';
+let fxInfo='';
+function fxReopen(){const d=new Date(),t=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate(),22));t.setUTCDate(t.getUTCDate()+(7-d.getUTCDay())%7);return t.toLocaleString('en-GB',{timeZone:PR,weekday:'long',hour:'2-digit',minute:'2-digit',hour12:false})}
+function fxBanner(){const e=$('closed');if(market==='f'&&fxClosed()){e.textContent='Forex market closed · reopens '+fxReopen()+' (Prague time)';e.hidden=false}else e.hidden=true}
+setInterval(fxBanner,60000);
 async function loadFx(){
  if(ws){ws.onclose=null;ws.close();ws=null}
  clearInterval(fxTimer);status(false,'Crypto off');stF(false,'Forex loading');fail('');
  try{
-  candles=await fxGet(S().s,FTF[tf],300);
+  candles=await fxGet(S().s,FTF[tf],300);const z=candles.tz;
   const pr=S().s.includes('JPY')?3:5;cs.applyOptions({priceFormat:{type:'price',precision:pr,minMove:1/10**pr}});
   cs.setData(candles);vs.setData([]);
   chart.timeScale().setVisibleLogicalRange({from:candles.length-110,to:candles.length+6});
-  showO(candles[candles.length-1]);analyse();head();wl();stF(true);
+  fxInfo=candles.length?` Last candle: ${new Date(candles[candles.length-1].time*1000).toLocaleString('en-GB',{timeZone:PR,day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',hour12:false})} Prague · ${candles.length} candles · source zone ${z}.`:' No candles returned.';
+  if(candles.length<2)fail('No forex candles to show. The market may be closed or the free feed returned nothing for this timeframe. Try 1h or 1D.');
+  showO(candles[candles.length-1]);analyse();head();wl();stF(true);fxBanner();
   fxTimer=setInterval(fxPoll,90000);
  }catch(e){stF(false,'Forex error');fail(fxErr(e))}
 }
@@ -210,7 +217,7 @@ setInterval(()=>{if(market==='f')fxWatch()},300000);
 async function load(){
  if(market==='f')return loadFx();
  clearInterval(fxTimer);stF(false,'Forex off');
- cs.applyOptions({priceFormat:{type:'price',precision:2,minMove:0.01}});
+ cs.applyOptions({priceFormat:{type:'price',precision:2,minMove:0.01}});$('closed').hidden=true;
  fail('');status(false,'Crypto connecting');
  try{
   const r=await fetch(`https://api.binance.com/api/v3/klines?symbol=${S().s}&interval=${ivl()}&limit=500`);
